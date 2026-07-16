@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SO Dashboard — PIL OTC</title>
+<style>
+  :root{
+    --blue:#00A0E3; --blue-deep:#0577A8; --blue-tint:#EAF6FC;
+    --ink:#14181C; --ink-soft:#4A5560; --paper:#F7F9FA; --card:#FFFFFF;
+    --line:#E2E8ED; --gold:#C9A961; --green:#1E8E5A; --red:#D64545;
+    --shadow: 0 20px 50px -20px rgba(20,24,28,0.25); --radius:16px;
+    --font-display:'Fraunces',Georgia,serif; --font-body:'Inter',-apple-system,sans-serif;
+  }
+  [data-theme="dark"]{
+    --ink:#EDF1F4; --ink-soft:#A8B4BE; --paper:#0B0F13; --card:#141A1F;
+    --line:#232B32; --blue-tint:#0F2733; --shadow:0 20px 50px -20px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:var(--font-body); background:var(--paper); color:var(--ink); min-height:100vh;}
+  .hidden{ display:none !important; }
+
+  /* ---- LOGIN ---- */
+  #loginScreen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .login-card{
+    background:var(--card); border:1px solid var(--line); border-radius:20px;
+    padding:40px 32px; width:100%; max-width:380px; box-shadow:var(--shadow);
+    text-align:center;
+  }
+  .login-card img{ height:40px; margin-bottom:18px; }
+  .login-card h2{ font-family:var(--font-display); font-size:24px; margin-bottom:6px; }
+  .login-card p{ color:var(--ink-soft); font-size:13.5px; margin-bottom:26px; }
+  .field{ text-align:left; margin-bottom:16px; }
+  .field label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); display:block; margin-bottom:6px; }
+  .field input{
+    width:100%; padding:13px 14px; border:1.5px solid var(--line); border-radius:10px;
+    background:var(--paper); color:var(--ink); font-size:16px; font-family:var(--font-body);
+  }
+  .field input:focus{ outline:none; border-color:var(--blue); }
+  .btn{
+    width:100%; padding:14px; border:none; border-radius:10px; background:var(--blue);
+    color:#fff; font-size:15px; font-weight:700; cursor:pointer; transition:background .2s;
+  }
+  .btn:hover{ background:var(--blue-deep); }
+  .btn-ghost{
+    background:transparent; border:1.5px solid var(--line); color:var(--ink);
+  }
+  .btn-ghost:hover{ background:var(--blue-tint); border-color:var(--blue); }
+  .login-error{ color:var(--red); font-size:13px; margin-top:12px; min-height:16px; }
+  .login-hint{ margin-top:20px; font-size:11.5px; color:var(--ink-soft); background:var(--blue-tint); padding:10px; border-radius:8px; }
+
+  /* ---- APP SHELL ---- */
+  #appScreen{ display:none; min-height:100vh; }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; background:var(--card); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:20;
+  }
+  .who{ display:flex; align-items:center; gap:10px; }
+  .who-avatar{
+    width:36px; height:36px; border-radius:10px; background:var(--blue-tint); color:var(--blue-deep);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px;
+  }
+  .who-name{ font-weight:700; font-size:14px; }
+  .who-hq{ font-size:11.5px; color:var(--ink-soft); }
+  .top-actions{ display:flex; gap:8px; }
+  .icon-btn{
+    width:38px; height:38px; border-radius:10px; border:1px solid var(--line); background:var(--card);
+    color:var(--ink-soft); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .icon-btn:hover{ color:var(--blue); border-color:var(--blue); }
+
+  main{ max-width:640px; margin:0 auto; padding:20px 16px 100px; }
+  .section-title{
+    font-family:var(--font-display); font-size:19px; font-weight:600; margin:22px 0 12px;
+  }
+  .section-title:first-child{ margin-top:0; }
+
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:14px; }
+
+  /* chemist search */
+  .search-wrap{ position:relative; }
+  .search-input{
+    width:100%; padding:14px 14px 14px 42px; border:1.5px solid var(--line); border-radius:12px;
+    background:var(--paper); color:var(--ink); font-size:15px;
+  }
+  .search-input:focus{ outline:none; border-color:var(--blue); }
+  .search-icon{ position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--ink-soft); }
+  .search-icon svg{ width:18px; height:18px; }
+  .dropdown-results{
+    position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--card);
+    border:1px solid var(--line); border-radius:12px; max-height:280px; overflow-y:auto;
+    box-shadow:var(--shadow); z-index:30; display:none;
+  }
+  .dropdown-results.show{ display:block; }
+  .result-item{ padding:12px 14px; cursor:pointer; border-bottom:1px solid var(--line); }
+  .result-item:last-child{ border-bottom:none; }
+  .result-item:hover{ background:var(--blue-tint); }
+  .result-name{ font-weight:600; font-size:14px; }
+  .result-meta{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .no-results{ padding:16px; text-align:center; color:var(--ink-soft); font-size:13.5px; }
+
+  .selected-chemist{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--blue-tint); border:1px solid var(--blue); border-radius:12px;
+    padding:14px 16px; margin-top:10px;
+  }
+  [data-theme="dark"] .selected-chemist{ border-color:var(--blue); }
+  .selected-chemist .name{ font-weight:700; font-size:14.5px; }
+  .selected-chemist .meta{ font-size:12px; color:var(--ink-soft); }
+  .clear-btn{ background:none; border:none; color:var(--ink-soft); cursor:pointer; font-size:13px; text-decoration:underline; }
+
+  .add-chemist-link{
+    display:inline-flex; align-items:center; gap:6px; margin-top:10px; font-size:13px;
+    color:var(--blue-deep); font-weight:600; cursor:pointer; background:none; border:none;
+  }
+  [data-theme="dark"] .add-chemist-link{ color:var(--blue); }
+
+  select.stockist-select{
+    width:100%; padding:13px 14px; border:1.5px solid var(--line); border-radius:12px;
+    background:var(--paper); color:var(--ink); font-size:15px;
+  }
+  .empty-note{ font-size:13px; color:var(--red); margin-top:8px; }
+
+  /* product list */
+  .product-filter{ display:flex; gap:8px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; }
+  .chip{
+    padding:7px 14px; border-radius:999px; border:1px solid var(--line); background:var(--card);
+    font-size:12.5px; font-weight:600; white-space:nowrap; cursor:pointer; color:var(--ink-soft);
+  }
+  .chip.active{ background:var(--blue); border-color:var(--blue); color:#fff; }
+
+  .product-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:13px 4px; border-bottom:1px solid var(--line);
+  }
+  .product-row:last-child{ border-bottom:none; }
+  .p-name{ font-size:14px; font-weight:600; line-height:1.3; }
+  .p-meta{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .qty-input{
+    width:64px; padding:9px 8px; border:1.5px solid var(--line); border-radius:8px;
+    text-align:center; font-size:15px; background:var(--paper); color:var(--ink);
+    flex-shrink:0;
+  }
+  .qty-input:focus{ outline:none; border-color:var(--blue); }
+
+  .order-summary{
+    position:sticky; bottom:0; background:var(--card); border-top:1px solid var(--line);
+    padding:16px; box-shadow:0 -10px 30px -15px rgba(0,0,0,.2);
+  }
+  .summary-row{ display:flex; justify-content:space-between; font-size:13.5px; color:var(--ink-soft); margin-bottom:4px; }
+  .summary-total{ display:flex; justify-content:space-between; font-size:19px; font-weight:800; margin:10px 0 14px; font-family:var(--font-display); }
+
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:var(--paper); padding:14px 22px; border-radius:14px;
+    font-size:13.5px; opacity:0; pointer-events:none; transition:all .3s; z-index:100; max-width:90vw;
+  }
+  [data-theme="dark"] .toast{ background:var(--card); border:1px solid var(--line); color:var(--ink); }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center;
+    z-index:200; padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal{ background:var(--card); border-radius:18px; padding:26px; width:100%; max-width:400px; }
+  .modal h3{ font-family:var(--font-display); font-size:20px; margin-bottom:16px; }
+
+  .recent-orders{ display:flex; flex-direction:column; gap:8px; }
+  .order-pill{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 14px; border:1px solid var(--line); border-radius:10px; font-size:13px;
+  }
+  .order-pill .amt{ font-weight:700; }
+  .status-badge{ font-size:10.5px; padding:3px 8px; border-radius:999px; font-weight:700; text-transform:uppercase; }
+  .status-badge.sent{ background:#E4F5EA; color:var(--green); }
+  [data-theme="dark"] .status-badge.sent{ background:#123322; }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAPlxdG0mZdwtNKyfxnhg42MZFGtseF_sQ",
+    authDomain: "chemist-order-collection.firebaseapp.com",
+    databaseURL: "https://chemist-order-collection-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "chemist-order-collection",
+    storageBucket: "chemist-order-collection.firebasestorage.app",
+    messagingSenderId: "758655877119",
+    appId: "1:758655877119:web:62ee051b9a45b1a274b1ca"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.database();
+</script>
+</head>
+<body data-theme="light">
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="login-card">
+    <img id="loginLogo" alt="PIL">
+    <h2>SO Login</h2>
+    <p>Enter your employee code and PIN</p>
+    <div class="field">
+      <label>Employee Code</label>
+      <input type="text" id="empCode" inputmode="numeric" placeholder="e.g. 3446" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>PIN</label>
+      <input type="password" id="pin" inputmode="numeric" placeholder="•••••" autocomplete="off">
+    </div>
+    <button class="btn" id="loginBtn">Login</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-hint">Default PIN for all SOs: <b>12345</b> — will be changed to individual PINs in a later update.</div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="appScreen">
+  <div class="topbar">
+    <div class="who">
+      <div class="who-avatar" id="whoAvatar">--</div>
+      <div>
+        <div class="who-name" id="whoName">—</div>
+        <div class="who-hq" id="whoHQ">—</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="themeToggle2" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+      <button class="icon-btn" id="logoutBtn" aria-label="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <main>
+    <!-- Step 1: chemist -->
+    <div class="section-title">1. Select Chemist</div>
+    <div class="card">
+      <div class="search-wrap">
+        <span class="search-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </span>
+        <input type="text" class="search-input" id="chemistSearch" placeholder="Search chemist by name or area..." autocomplete="off">
+        <div class="dropdown-results" id="chemistResults"></div>
+      </div>
+      <div id="selectedChemistBox"></div>
+      <button class="add-chemist-link" id="addChemistLink">+ Add a new chemist not in the list</button>
+    </div>
+
+    <!-- Step 2: stockist -->
+    <div class="section-title">2. Select Stockist</div>
+    <div class="card">
+      <select class="stockist-select" id="stockistSelect">
+        <option value="">— Select stockist —</option>
+      </select>
+      <div class="empty-note hidden" id="noStockistNote">No stockist is currently mapped to your account. Contact admin.</div>
+    </div>
+
+    <!-- Step 3: products -->
+    <div class="section-title">3. Build Order</div>
+    <div class="card">
+      <div class="search-wrap" style="margin-bottom:12px;">
+        <span class="search-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </span>
+        <input type="text" class="search-input" id="productSearch" placeholder="Search product..." autocomplete="off">
+      </div>
+      <div class="product-filter" id="categoryChips"></div>
+      <div id="productList"></div>
+    </div>
+
+    <!-- Recent orders -->
+    <div class="section-title">Recent Orders</div>
+    <div class="card">
+      <div class="recent-orders" id="recentOrders">
+        <div class="no-results">No orders submitted yet today.</div>
+      </div>
+    </div>
+  </main>
+
+  <div class="order-summary">
+    <div class="summary-row"><span id="lineCount">0 items</span><span id="qtyTotal">0 qty</span></div>
+    <div class="summary-total"><span>Order Total</span><span id="orderTotal">₹0</span></div>
+    <button class="btn" id="submitOrderBtn">Submit Order</button>
+  </div>
+</div>
+
+<!-- Add chemist modal -->
+<div class="modal-overlay" id="addChemistModal">
+  <div class="modal">
+    <h3>Add New Chemist</h3>
+    <div class="field"><label>Chemist Name</label><input type="text" id="newChemName"></div>
+    <div class="field"><label>Area</label><input type="text" id="newChemArea"></div>
+    <div class="field"><label>Mobile No.</label><input type="text" id="newChemMobile" inputmode="numeric"></div>
+    <div style="display:flex; gap:10px; margin-top:6px;">
+      <button class="btn btn-ghost" id="cancelAddChemist">Cancel</button>
+      <button class="btn" id="saveAddChemist">Add Chemist</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const state = {
+  theme: localStorage.getItem('pil-theme') || 'light',
+  user: null,
+  products: [],
+  stockists: [],
+  chemists: [],
+  selectedChemist: null,
+  selectedStockist: null,
+  cart: {}, // itemCode -> qty
+  category: 'all',
+};
+document.body.setAttribute('data-theme', state.theme);
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function money(n){ return '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+
+[document.getElementById('themeToggle2')].forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', state.theme);
+    localStorage.setItem('pil-theme', state.theme);
+  });
+});
+
+// ---------- LOGIN ----------
+async function loadRoster(){
+  const res = await fetch('data/so_roster.json');
+  return res.json();
+}
+document.getElementById('loginBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('empCode').value.trim();
+  const pin = document.getElementById('pin').value.trim();
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if(!code || !pin){ errEl.textContent = 'Enter both employee code and PIN.'; return; }
+
+  const roster = await loadRoster();
+  const person = roster[code];
+  if(!person){ errEl.textContent = 'Employee code not found.'; return; }
+
+  const syntheticEmail = `so${code}@pil-otc.internal`;
+  const loginBtn = document.getElementById('loginBtn');
+  loginBtn.textContent = 'Logging in...'; loginBtn.disabled = true;
+  try{
+    await auth.signInWithEmailAndPassword(syntheticEmail, pin);
+  }catch(err){
+    // First-time login for this SO — create the Auth account with the shared PIN
+    if(err.code === 'auth/user-not-found'){
+      try{
+        await auth.createUserWithEmailAndPassword(syntheticEmail, pin);
+      }catch(createErr){
+        errEl.textContent = 'Login failed: ' + createErr.message;
+        loginBtn.textContent = 'Login'; loginBtn.disabled = false;
+        return;
+      }
+    } else {
+      errEl.textContent = 'Incorrect PIN.';
+      loginBtn.textContent = 'Login'; loginBtn.disabled = false;
+      return;
+    }
+  }
+  loginBtn.textContent = 'Login'; loginBtn.disabled = false;
+  state.user = { code, ...person };
+  await bootDashboard();
+});
+
+async function bootDashboard(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+
+  document.getElementById('whoName').textContent = state.user.name;
+  document.getElementById('whoHQ').textContent = state.user.hq;
+  document.getElementById('whoAvatar').textContent = state.user.name.split(' ').map(w=>w[0]).slice(0,2).join('');
+
+  const [prodRes, stkRes, chemRes] = await Promise.all([
+    fetch('data/products.json'),
+    fetch('data/stockists.json'),
+    fetch(`data/chemists-by-so/${state.user.code}.json`).catch(()=>({json:()=>[]}))
+  ]);
+  state.products = await prodRes.json();
+  const allStockists = await stkRes.json();
+  state.stockists = allStockists.filter(s => String(s.soCode) === String(state.user.code));
+  try{ state.chemists = await chemRes.json(); }catch(e){ state.chemists = []; }
+
+  renderStockistDropdown();
+  renderCategoryChips();
+  renderProducts();
+  renderRecentOrders();
+}
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  location.reload();
+});
+
+// ---------- CHEMIST SEARCH ----------
+const chemSearchInput = document.getElementById('chemistSearch');
+const chemResultsBox = document.getElementById('chemistResults');
+chemSearchInput.addEventListener('input', ()=>{
+  const q = chemSearchInput.value.trim().toLowerCase();
+  if(q.length < 2){ chemResultsBox.classList.remove('show'); return; }
+  const matches = state.chemists.filter(c =>
+    (c.chemistName||'').toLowerCase().includes(q) || (c.area||'').toLowerCase().includes(q)
+  ).slice(0, 20);
+  chemResultsBox.innerHTML = matches.length
+    ? matches.map(c => `
+        <div class="result-item" data-code="${c.chemistCode}">
+          <div class="result-name">${c.chemistName}</div>
+          <div class="result-meta">${c.area || ''} ${c.mobile ? '· ' + c.mobile : ''}</div>
+        </div>`).join('')
+    : `<div class="no-results">No chemist found. Try "+ Add a new chemist" below.</div>`;
+  chemResultsBox.classList.add('show');
+});
+chemResultsBox.addEventListener('click', (e)=>{
+  const item = e.target.closest('.result-item');
+  if(!item) return;
+  const code = item.dataset.code;
+  const chemist = state.chemists.find(c => String(c.chemistCode) === String(code));
+  selectChemist(chemist);
+});
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('.search-wrap')) chemResultsBox.classList.remove('show');
+});
+
+function selectChemist(chemist){
+  state.selectedChemist = chemist;
+  chemSearchInput.value = '';
+  chemResultsBox.classList.remove('show');
+  document.getElementById('selectedChemistBox').innerHTML = `
+    <div class="selected-chemist">
+      <div>
+        <div class="name">${chemist.chemistName}</div>
+        <div class="meta">${chemist.area || ''} ${chemist.mobile ? '· ' + chemist.mobile : ''}</div>
+      </div>
+      <button class="clear-btn" id="clearChemist">Change</button>
+    </div>`;
+  document.getElementById('clearChemist').addEventListener('click', ()=>{
+    state.selectedChemist = null;
+    document.getElementById('selectedChemistBox').innerHTML = '';
+  });
+}
+
+// ---------- ADD CHEMIST ----------
+document.getElementById('addChemistLink').addEventListener('click', ()=>{
+  document.getElementById('addChemistModal').classList.add('show');
+});
+document.getElementById('cancelAddChemist').addEventListener('click', ()=>{
+  document.getElementById('addChemistModal').classList.remove('show');
+});
+document.getElementById('saveAddChemist').addEventListener('click', ()=>{
+  const name = document.getElementById('newChemName').value.trim();
+  const area = document.getElementById('newChemArea').value.trim();
+  const mobile = document.getElementById('newChemMobile').value.trim();
+  if(!name){ toast('Chemist name is required'); return; }
+  const newChemist = {
+    chemistCode: 'NEW-' + Date.now(),
+    chemistName: name, area, mobile,
+    soCode: state.user.code, soName: state.user.name, soHQ: state.user.hq,
+    addedBy: state.user.code, status: 'pending' // flagged for admin review, per data-integrity rule
+  };
+  state.chemists.unshift(newChemist);
+  selectChemist(newChemist);
+  document.getElementById('addChemistModal').classList.remove('show');
+  document.getElementById('newChemName').value = '';
+  document.getElementById('newChemArea').value = '';
+  document.getElementById('newChemMobile').value = '';
+  toast('Chemist added — pending admin review');
+});
+
+// ---------- STOCKIST DROPDOWN ----------
+function renderStockistDropdown(){
+  const sel = document.getElementById('stockistSelect');
+  const note = document.getElementById('noStockistNote');
+  if(state.stockists.length === 0){
+    note.classList.remove('hidden');
+    sel.classList.add('hidden');
+    return;
+  }
+  sel.innerHTML = '<option value="">— Select stockist —</option>' +
+    state.stockists.map(s => `<option value="${s.sapCode}">${s.partyName} (${s.town})</option>`).join('');
+  sel.addEventListener('change', ()=>{
+    state.selectedStockist = state.stockists.find(s => String(s.sapCode) === sel.value) || null;
+  });
+}
+
+// ---------- PRODUCTS ----------
+function renderCategoryChips(){
+  const cats = ['all', ...new Set(state.products.map(p => p.category).filter(Boolean))];
+  document.getElementById('categoryChips').innerHTML = cats.map(c =>
+    `<button class="chip ${c===state.category?'active':''}" data-cat="${c}">${c === 'all' ? 'All' : c}</button>`
+  ).join('');
+  document.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      state.category = chip.dataset.cat;
+      renderCategoryChips();
+      renderProducts();
+    });
+  });
+}
+document.getElementById('productSearch').addEventListener('input', renderProducts);
+
+function renderProducts(){
+  const q = document.getElementById('productSearch').value.trim().toLowerCase();
+  let list = state.products;
+  if(state.category !== 'all') list = list.filter(p => p.category === state.category);
+  if(q) list = list.filter(p => p.productName.toLowerCase().includes(q));
+
+  document.getElementById('productList').innerHTML = list.map(p => `
+    <div class="product-row">
+      <div>
+        <div class="p-name">${p.productName}</div>
+        <div class="p-meta">PTD ${money(p.ptd)} · MRP ${money(p.mrp)}${p.schemePercent ? ' · Scheme ' + p.schemePercent + '%' : ''}</div>
+      </div>
+      <input type="number" min="0" class="qty-input" data-code="${p.itemCode}" value="${state.cart[p.itemCode] || ''}" placeholder="0">
+    </div>
+  `).join('') || `<div class="no-results">No products match.</div>`;
+
+  document.querySelectorAll('.qty-input').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const code = inp.dataset.code;
+      const val = parseInt(inp.value) || 0;
+      if(val > 0) state.cart[code] = val; else delete state.cart[code];
+      updateSummary();
+    });
+  });
+}
+
+function updateSummary(){
+  let items = 0, qty = 0, total = 0;
+  for(const code in state.cart){
+    const p = state.products.find(pr => String(pr.itemCode) === String(code));
+    if(!p) continue;
+    const q = state.cart[code];
+    const gross = p.ptd * q;
+    const net = gross - (gross * (p.schemePercent||0) / 100);
+    items += 1; qty += q; total += net;
+  }
+  document.getElementById('lineCount').textContent = items + ' item' + (items!==1?'s':'');
+  document.getElementById('qtyTotal').textContent = qty + ' qty';
+  document.getElementById('orderTotal').textContent = money(total);
+  return total;
+}
+
+// ---------- SUBMIT ----------
+document.getElementById('submitOrderBtn').addEventListener('click', async ()=>{
+  if(!state.selectedChemist){ toast('Select a chemist first'); return; }
+  if(!state.selectedStockist){ toast('Select a stockist first'); return; }
+  if(Object.keys(state.cart).length === 0){ toast('Add at least one product'); return; }
+
+  const total = updateSummary();
+  const order = {
+    soCode: state.user.code, soName: state.user.name, soHQ: state.user.hq,
+    chemist: state.selectedChemist,
+    stockistSapCode: state.selectedStockist.sapCode, stockist: state.selectedStockist,
+    lines: Object.entries(state.cart).map(([code, qty])=>{
+      const p = state.products.find(pr => String(pr.itemCode) === String(code));
+      return { itemCode: code, productName: p.productName, ptd: p.ptd, qty, schemePercent: p.schemePercent||0 };
+    }),
+    total, timestamp: Date.now(), status: 'submitted'
+  };
+
+  const submitBtn = document.getElementById('submitOrderBtn');
+  submitBtn.textContent = 'Sending...'; submitBtn.disabled = true;
+  try{
+    const newRef = db.ref('orders').push();
+    await newRef.set(order);
+    // Cloud Function (server-side, not this file) listens on orders/{id} to generate CSV + email + wa.me link
+    toast(state.selectedStockist.contactPending
+      ? `Order saved. ${state.selectedStockist.partyName}'s email/mobile not on file yet — nothing sent until admin fills it in.`
+      : `Order sent to ${state.selectedStockist.partyName}`);
+  }catch(err){
+    toast('Order failed to save: ' + err.message);
+    submitBtn.textContent = 'Submit Order'; submitBtn.disabled = false;
+    return;
+  }
+  submitBtn.textContent = 'Submit Order'; submitBtn.disabled = false;
+
+  if(state.selectedChemist.status === 'pending'){
+    try{ await db.ref('chemists_pending/' + state.selectedChemist.chemistCode).set(state.selectedChemist); }catch(e){}
+  }
+
+  state.cart = {}; state.selectedChemist = null; state.selectedStockist = null;
+  document.getElementById('selectedChemistBox').innerHTML = '';
+  document.getElementById('stockistSelect').value = '';
+  renderProducts();
+  updateSummary();
+  renderRecentOrders();
+});
+
+function renderRecentOrders(){
+  db.ref('orders').orderByChild('soCode').equalTo(state.user.code).limitToLast(8).once('value', snap=>{
+    const box = document.getElementById('recentOrders');
+    const val = snap.val();
+    if(!val){ box.innerHTML = `<div class="no-results">No orders submitted yet today.</div>`; return; }
+    const orders = Object.values(val).sort((a,b)=>b.timestamp - a.timestamp);
+    box.innerHTML = orders.map(o => `
+      <div class="order-pill">
+        <div>
+          <div style="font-weight:600;">${o.chemist.chemistName}</div>
+          <div style="color:var(--ink-soft); font-size:11.5px;">→ ${o.stockist.partyName}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="amt">${money(o.total)}</div>
+          <span class="status-badge sent">Sent</span>
+        </div>
+      </div>
+    `).join('');
+  }, err=>{
+    document.getElementById('recentOrders').innerHTML = `<div class="no-results">Could not load orders.</div>`;
+  });
+}
+
+// logo inject (reuse base64 from gateway page — placeholder here, swap with same data URI at deploy)
+document.getElementById('loginLogo').src = 'assets/logo-mark.png';
+</script>
+
+</body>
+</html>
