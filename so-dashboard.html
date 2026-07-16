@@ -362,28 +362,26 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
   const loginBtn = document.getElementById('loginBtn');
   loginBtn.textContent = 'Logging in...'; loginBtn.disabled = true;
   try{
-    await auth.signInWithEmailAndPassword(syntheticEmail, pin);
-  }catch(err){
-    console.error('Login error:', err.code, err.message);
-    if(err.code === 'auth/user-not-found'){
+    await auth.createUserWithEmailAndPassword(syntheticEmail, pin);
+    // Account created — this was this SO's first login.
+  }catch(createErr){
+    if(createErr.code === 'auth/email-already-in-use'){
+      // Account already exists — this is a returning SO, verify their PIN.
       try{
-        await auth.createUserWithEmailAndPassword(syntheticEmail, pin);
-      }catch(createErr){
-        console.error('Account creation error:', createErr.code, createErr.message);
-        errEl.textContent = 'Login failed: ' + createErr.message;
+        await auth.signInWithEmailAndPassword(syntheticEmail, pin);
+      }catch(signInErr){
+        console.error('Login error:', signInErr.code, signInErr.message);
+        errEl.textContent = 'Incorrect PIN.';
         loginBtn.textContent = 'Login'; loginBtn.disabled = false;
         return;
       }
-    } else if(err.code === 'auth/wrong-password'){
-      errEl.textContent = 'Incorrect PIN.';
-      loginBtn.textContent = 'Login'; loginBtn.disabled = false;
-      return;
-    } else if(err.code === 'auth/unauthorized-domain'){
+    } else if(createErr.code === 'auth/unauthorized-domain'){
       errEl.textContent = 'This site is not yet authorized in Firebase. Ask admin to add this domain under Authentication → Settings → Authorized domains.';
       loginBtn.textContent = 'Login'; loginBtn.disabled = false;
       return;
     } else {
-      errEl.textContent = 'Login error: ' + err.message;
+      console.error('Account creation error:', createErr.code, createErr.message);
+      errEl.textContent = 'Login error: ' + createErr.message;
       loginBtn.textContent = 'Login'; loginBtn.disabled = false;
       return;
     }
