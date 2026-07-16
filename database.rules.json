@@ -1,0 +1,27 @@
+{
+  "rules": {
+    "orders": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["soCode", "stockistSapCode", "timestamp"]
+    },
+    "chemists_pending": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "products": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "stockists": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "so_roster": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    ".read": false,
+    ".write": false
+  }
+}
