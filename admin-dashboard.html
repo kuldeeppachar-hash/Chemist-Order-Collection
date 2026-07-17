@@ -306,7 +306,9 @@ function handleFile(file){
       const name = sheetNames[key];
       const ws = wb.Sheets[name];
       if(ws){
-        found[key] = XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
+        // Product List has a title row above the real headers; every other sheet's headers start on row 1.
+        const opts = key === 'products' ? {defval:null, raw:true, range:1} : {defval:null, raw:true};
+        found[key] = XLSX.utils.sheet_to_json(ws, opts);
         const requiredByKey = {
           products: ['Item Code','Product Name','MRP (₹)','PTD (₹)'],
           team: ['Name','Code','Designation'],
