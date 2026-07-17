@@ -272,6 +272,26 @@ function cleanName(n){
   return String(n).trim().replace(/[\*\-\.]+$/,'').replace(/\s+/g,' ').toUpperCase();
 }
 
+// Normalizes a header string for tolerant matching: lowercase, strip all non-alphanumeric.
+function normHeader(h){
+  return String(h||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+
+// Given a raw sheet_to_json row (keys = literal Excel headers) and a list of candidate
+// header names, returns the value of whichever candidate matches after normalization.
+// This is what protects the import from breaking on "MRP (₹)" vs "MRP(Rs)" vs "MRP" etc.
+function getField(row, candidates){
+  const normalizedRowKeys = {};
+  for(const k in row){ normalizedRowKeys[normHeader(k)] = k; }
+  for(const c of candidates){
+    const nk = normHeader(c);
+    if(normalizedRowKeys[nk] !== undefined){
+      return row[normalizedRowKeys[nk]];
+    }
+  }
+  return undefined;
+}
+
 function handleFile(file){
   const reader = new FileReader();
   reader.onload = (e)=>{
@@ -287,7 +307,21 @@ function handleFile(file){
       const ws = wb.Sheets[name];
       if(ws){
         found[key] = XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
-        preview.innerHTML += `<div class="sheet-row"><span>${name}</span><span class="ok">✓ ${found[key].length} rows found</span></div>`;
+        const requiredByKey = {
+          products: ['Item Code','Product Name','MRP (₹)','PTD (₹)'],
+          team: ['Name','Code','Designation'],
+          stockists: ['SAP Code','Party Name','SO Name'],
+          chemists: ['Chemist code','chemist Name','Employee Code']
+        };
+        const sampleRow = found[key][0] || {};
+        const detected = requiredByKey[key].map(col => {
+          const ok = getField(sampleRow, [col]) !== undefined;
+          return `<span style="color:${ok?'var(--green)':'var(--red)'}; font-weight:600;">${ok?'✓':'✗'} ${col}</span>`;
+        }).join(' &nbsp; ');
+        preview.innerHTML += `<div class="sheet-row" style="flex-direction:column; align-items:flex-start; gap:6px;">
+          <div style="display:flex; justify-content:space-between; width:100%;"><span>${name}</span><span class="ok">✓ ${found[key].length} rows found</span></div>
+          <div style="font-size:11.5px;">${detected}</div>
+        </div>`;
       } else {
         preview.innerHTML += `<div class="sheet-row"><span>${name}</span><span class="missing">✗ sheet not found</span></div>`;
       }
@@ -320,48 +354,68 @@ document.getElementById('confirmUploadBtn').addEventListener('click', async ()=>
     const teamRows = parsedData.team || [];
     const nameToCode = {}; const soRoster = {}; const allEmployees = {};
     teamRows.forEach(r=>{
-      const name = r['Name']; const code = r['Code'];
+      const name = getField(r, ['Name']); const code = getField(r, ['Code','Employee Code','Emp Code']);
       if(!name || !code) return;
       const cn = cleanName(name);
       nameToCode[cn] = code;
-      const entry = { code, name: String(name).trim(), hq: r['Head Qtr.'], state: r['State'],
-        designation: r['Designation'], mobile: r['Mobile'], email: r['EMAIL'],
-        active: !r['Date Of Exit'] };
+      const entry = { code, name: String(name).trim(),
+        hq: getField(r,['Head Qtr.','Head Quarter','HQ']), state: getField(r,['State']),
+        designation: getField(r,['Designation']), mobile: getField(r,['Mobile','Mobile No']),
+        email: getField(r,['EMAIL','Email']),
+        active: !getField(r,['Date Of Exit','Date of Exit','Exit Date']) };
       allEmployees[code] = entry;
-      if(r['Designation'] === 'SO' && entry.active) soRoster[code] = entry;
+      if(entry.designation === 'SO' && entry.active) soRoster[code] = entry;
     });
 
     // 3. Products
-    const products = (parsedData.products || []).filter(r=>r['Item Code']).map(r=>({
-      sNo: r['S.No'], itemCode: r['Item Code'], productName: r['Product Name'], category: r['Category'],
-      uom: r['UOM'], mrp: r['MRP (₹)'], ptd: r['PTD (₹)'], shipperSize: r['Shipper Size'],
-      schemePercent: r['Scheme %'] || 0
-    }));
+    const products = (parsedData.products || [])
+      .filter(r => getField(r, ['Item Code']))
+      .map(r => ({
+        sNo: getField(r,['S.No','SNo','S No']),
+        itemCode: getField(r,['Item Code']),
+        productName: getField(r,['Product Name']),
+        category: getField(r,['Category']),
+        uom: getField(r,['UOM']),
+        mrp: getField(r,['MRP (₹)','MRP(₹)','MRP','MRP Rs','MRP (Rs.)']),
+        ptd: getField(r,['PTD (₹)','PTD(₹)','PTD','PTD Rs','PTD (Rs.)']),
+        shipperSize: getField(r,['Shipper Size']),
+        schemePercent: getField(r,['Scheme %','Scheme%','Scheme']) || 0
+      }));
     const productsObj = {}; products.forEach(p=> productsObj[p.itemCode] = p);
 
     // 4. Stockists — join Party List SO Name -> employee code
     const MANUAL_FIX = { 'SHHAHBAJ KHAN': 'SHAHBAJ KHAN' };
-    const stockists = (parsedData.stockists || []).filter(r=>r['SAP Code']).map(r=>{
-      let cn = cleanName(r['SO Name']);
-      cn = MANUAL_FIX[cn] || cn;
-      const code = nameToCode[cn] || null;
-      return {
-        sapCode: r['SAP Code'], partyName: String(r['Party Name']||'').trim(), hq: r['HQ'], town: r['Town'],
-        state: r['State'], cfCode: r['C & F '],
-        soCode: code, soName: code ? allEmployees[code].name : null,
-        email: r['PARTY EMAIL ID'] || 'pending-stockist-email@notset.pil',
-        mobile: r['PARTY MOBILE NO'] || '0000000000',
-        contactPending: !(r['PARTY EMAIL ID'] && r['PARTY MOBILE NO'])
-      };
-    });
+    const stockists = (parsedData.stockists || [])
+      .filter(r => getField(r, ['SAP Code','SAP  Code']))
+      .map(r => {
+        let cn = cleanName(getField(r, ['SO Name']));
+        cn = MANUAL_FIX[cn] || cn;
+        const code = nameToCode[cn] || null;
+        const email = getField(r, ['PARTY EMAIL ID','Party Email Id','Email']);
+        const mobile = getField(r, ['PARTY MOBILE NO','Party Mobile No','Mobile']);
+        return {
+          sapCode: getField(r,['SAP Code','SAP  Code']),
+          partyName: String(getField(r,['Party Name'])||'').trim(),
+          hq: getField(r,['HQ']), town: getField(r,['Town']), state: getField(r,['State']),
+          cfCode: getField(r,['C & F ','C & F','CF Code']),
+          soCode: code, soName: code ? allEmployees[code].name : null,
+          email: email || 'pending-stockist-email@notset.pil',
+          mobile: mobile || '0000000000',
+          contactPending: !(email && mobile)
+        };
+      });
     const stockistsObj = {}; stockists.forEach(s=> stockistsObj[s.sapCode] = s);
 
     // 5. Chemists — already carry Employee Code directly
-    const chemists = (parsedData.chemists || []).filter(r=>r['Chemist code']).map(r=>({
-      chemistCode: r['Chemist code'], chemistName: String(r['chemist Name']||'').trim(),
-      area: r['Area'], mobile: r['Mobile no'], soCode: r['Employee Code'],
-      soName: r['SO name'], soHQ: r['SO HQ'], addedBy: 'master', status: 'approved'
-    }));
+    const chemists = (parsedData.chemists || [])
+      .filter(r => getField(r, ['Chemist code','Chemist Code']))
+      .map(r => ({
+        chemistCode: getField(r,['Chemist code','Chemist Code']),
+        chemistName: String(getField(r,['chemist Name','Chemist Name'])||'').trim(),
+        area: getField(r,['Area']), mobile: getField(r,['Mobile no','Mobile No']),
+        soCode: getField(r,['Employee Code']), soName: getField(r,['SO name','SO Name']),
+        soHQ: getField(r,['SO HQ']), addedBy: 'master', status: 'approved'
+      }));
     const chemistsObj = {}; chemists.forEach(c=> chemistsObj[c.chemistCode] = c);
 
     // 6. Write everything live
